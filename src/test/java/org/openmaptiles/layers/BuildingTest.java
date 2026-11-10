@@ -30,6 +30,11 @@ class BuildingTest extends AbstractLayerTest {
       "building_hide_outlines_with_parts", "true"
     ))), Stats.inMemory());
 
+  private final OpenMapTilesProfile profileNotMergingZ14 = new OpenMapTilesProfile(translations,
+    PlanetilerConfig.from(Arguments.of(Map.of(
+      "building_merge_z14", "false"
+    ))), Stats.inMemory());
+
   @Test
   void testBuilding() {
     assertFeatures(13, List.of(Map.of(
@@ -271,6 +276,37 @@ class BuildingTest extends AbstractLayerTest {
     Assertions.assertEquals(
       Map.of("render_height", 30, "hide_3d", true),
       result.stream().filter(feature -> feature.id() == 1).findFirst().orElseThrow().tags()
+    );
+  }
+
+  @Test
+  void testZ14MergeCanBeDisabled() throws GeometryException {
+    var poly1 = new VectorTile.Feature(
+      Building.LAYER_NAME,
+      1,
+      VectorTile.encodeGeometry(rectangle(10, 20)),
+      Map.of(),
+      0
+    );
+    var poly2 = new VectorTile.Feature(
+      Building.LAYER_NAME,
+      2,
+      VectorTile.encodeGeometry(rectangle(20, 10, 22, 20)),
+      Map.of(),
+      0
+    );
+
+    var unmerged = profileNotMergingZ14.postProcessLayerFeatures(Building.LAYER_NAME, 14, List.of(poly1, poly2));
+    Assertions.assertEquals(2, unmerged.size());
+    Assertions.assertEquals(1, unmerged.get(0).geometry().decode().getNumGeometries());
+    Assertions.assertEquals(1, unmerged.get(1).geometry().decode().getNumGeometries());
+    Assertions.assertEquals(
+      1, // z13 merging is controlled by building_merge_z13
+      profileNotMergingZ14.postProcessLayerFeatures(Building.LAYER_NAME, 13, List.of(poly1, poly2)).size()
+    );
+    Assertions.assertEquals(
+      1, // default still merges at z14
+      profile.postProcessLayerFeatures(Building.LAYER_NAME, 14, List.of(poly1, poly2)).size()
     );
   }
 

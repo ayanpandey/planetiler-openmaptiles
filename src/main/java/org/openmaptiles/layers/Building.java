@@ -89,7 +89,8 @@ public class Building implements
    *
    * THIS IS VERY EXPENSIVE! Merging buildings at z13 adds about 50% to the
    * total map generation time.  To disable it, set building_merge_z13 argument
-   * to false.
+   * to false.  To keep z14 buildings as separate features instead of merging
+   * them into multipolygons, set building_merge_z14=false.
    */
 
   private static final Map<String, String> MATERIAL_COLORS = Map.ofEntries(
@@ -115,12 +116,18 @@ public class Building implements
   /** Share of a building's area that its parts have to cover before the building is hidden in 3D. */
   private static final double MIN_PART_COVERAGE = 0.5;
   private final boolean mergeZ13Buildings;
+  private final boolean mergeZ14Buildings;
   private final boolean hideOutlinesWithParts;
 
   public Building(Translations translations, PlanetilerConfig config, Stats stats) {
     this.mergeZ13Buildings = config.arguments().getBoolean(
       "building_merge_z13",
       "building layer: merge nearby buildings at z13",
+      true
+    );
+    this.mergeZ14Buildings = config.arguments().getBoolean(
+      "building_merge_z14",
+      "building layer: merge buildings with identical attributes into multipolygons at z14",
       true
     );
     this.hideOutlinesWithParts = config.arguments().getBoolean(
@@ -201,10 +208,15 @@ public class Building implements
     if (hideOutlinesWithParts && zoom >= 14) {
       hideOutlinesCoveredByParts(items);
     }
-    return (mergeZ13Buildings && zoom == 13) ?
-      FeatureMerge.mergeNearbyPolygons(items, 4, 4, 0.5, 0.5) :
-      // reduces the size of some heavy z14 tiles with many small buildings by 60% or more
-      FeatureMerge.mergeMultiPolygon(items);
+    if (mergeZ13Buildings && zoom == 13) {
+      return FeatureMerge.mergeNearbyPolygons(items, 4, 4, 0.5, 0.5);
+    }
+    if (!mergeZ14Buildings && zoom >= 14) {
+      // keep each building its own feature so its id maps to exactly one OSM element
+      return items;
+    }
+    // reduces the size of some heavy z14 tiles with many small buildings by 60% or more
+    return FeatureMerge.mergeMultiPolygon(items);
   }
 
   /**
